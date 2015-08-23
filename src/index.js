@@ -8,18 +8,19 @@ var utils = require('./utils')
 var NETWORKS = {
   testnet: "tbtc",
   bitcoin: "btc",
+  blackcoin: "blk",
   litecoin: "ltc"
 }
 
 function Blockr(network, proxyURL) {
-  network = network || 'bitcoin'
+  network = network || 'blackcoin'
   assert(network in NETWORKS, 'Unknown network: ' + network)
-  var BASE_URL = 'https://' + NETWORKS[network] + '.blockr.io/api/v1/'
+  var BASE_URL = 'http://localhost:3000/api/'
 
   // end points
-  this.transactions = new Transactions(BASE_URL + 'tx/')
-  this.addresses = new Addresses(BASE_URL + 'address/', this.transactions)
-  this.blocks = new Blocks(BASE_URL + 'block/', this.transactions)
+  this.transactions = new Transactions(BASE_URL + 'rawmultitx/')
+  this.addresses = new Addresses(BASE_URL + 'multiaddrs/', this.transactions)
+  this.blocks = new Blocks(BASE_URL + 'blockheader/', this.transactions)
 
   this.network = network
 

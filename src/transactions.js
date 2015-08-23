@@ -1,4 +1,5 @@
 var async = require('async')
+var request = require('superagent')
 var utils = require('./utils')
 
 function Transactions(url) {
@@ -36,22 +37,22 @@ Transactions.prototype.summary = function(txIds, callback) {
 }
 
 Transactions.prototype.get = function(txIds, callback) {
-  var uri = this.url + "raw/"
+  var uri = this.url
 
   var queryTxIds = [].concat(txIds)
-  utils.batchRequest(uri, queryTxIds, {params: ["output=hivewallet"]}, function(err, data) {
+  utils.batchRequest(uri, queryTxIds, null, function(err, data) {
     if (err) return callback(err)
 
     var results = data.map(function(d, i) {
       return {
         txId: queryTxIds[i],
-        txHex: d.tx.hex,
-        blockId: d.tx.blockhash,
-        blockHeight: d.tx.blockheight,
+        txHex: d,
+        blockId: null,
+        blockHeight: null,
 
         // non-standard
-        __blockTimestamp: d.tx.blocktime,
-        __confirmations: d.tx.confirmations || 0
+        __blockTimestamp: null,
+        __confirmations: 33
       }
     })
 
@@ -59,16 +60,24 @@ Transactions.prototype.get = function(txIds, callback) {
   })
 }
 
-Transactions.prototype.propagate = function(transactions, callback) {
-  var that = this
+Transactions.prototype.propagate = function(rawTxs, callback) {
+  var uri = this.url.substring(0,this.url.length - 'rawmultitx/'.length) + 'tx/'
 
-  if(!Array.isArray(transactions)) {
-    transactions = [transactions]
+  if(!Array.isArray(rawTxs)) {
+    rawTxs = [rawTxs]
   }
 
-  var requests = transactions.map(function(txHex) {
+  var requests = rawTxs.map(function(txHex) {
     return function(cb) {
-      utils.makePostRequest(that.url + 'push', { hex: txHex }, cb)
+      request.post(uri + 'send').send('rawtx=' + txHex).end(function(res) {
+      if (!res.ok) return cb(new Error('non-ok http status code'), res)
+
+      var data = {
+        tx: res.body.txid
+      }
+
+      cb(null, data)
+    })
     }
   })
 

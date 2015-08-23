@@ -3,40 +3,21 @@ var request = require('httpify')
 var async = require('async')
 var proxyURL;
 
-function assertJSend(body) {
-  assert.notEqual(body.status, 'error', body.message || 'Invalid JSend response:' + JSON.stringify(body))
-  assert.notEqual(body.status, 'fail', body.data || 'Invalid JSend response: ' + JSON.stringify(body))
-
-  assert.equal(body.status, 'success', 'Unexpected JSend response: ' + body)
-  assert.notEqual(body.data, undefined, 'Unexpected JSend response: ' + body)
-}
-
 function handleJSend(callback) {
   return function(err, response) {
     if (err) return callback(err)
-
-    try {
-      assertJSend(response.body)
-    } catch (exception) {
-      return callback(exception)
-    }
-
-    callback(null, response.body.data)
+    callback(null, response.body)
   }
 }
 
-function batchRequest(uri, items, options, callback) {
+function batchRequest(uri, items, suffix, callback) {
+  if(typeof suffix === 'function') {
+    callback = suffix
+    suffix = null
+  }
   items = [].concat(items)
 
-  if(typeof options === 'function') {
-    callback = options
-    options = {}
-  } else {
-    options = options || {}
-  }
-
-  var itemsPerBatch = options.itemsPerBatch || 20
-  var params = options.params
+  var itemsPerBatch = 20
 
   var batches = []
   while(items.length > itemsPerBatch){
@@ -49,7 +30,7 @@ function batchRequest(uri, items, options, callback) {
 
   var requests = batches.map(function(batch) {
     return function(cb) {
-      makeRequest(uri + batch.join(','), params, cb)
+      makeRequest(uri + batch.join(','), suffix, cb)
     }
   })
 
@@ -65,17 +46,15 @@ function batchRequest(uri, items, options, callback) {
   })
 }
 
-function makeRequest(uri, params, callback){
-  if(Array.isArray(params)){
-    uri +=  '?' + params.join('&')
-  } else if (params instanceof Function) {
-    callback = params
+function makeRequest(uri, suffix, callback){
+  if(suffix){
+    uri +=  '/' + suffix
   }
-
+  
   if(proxyURL) {
     uri = proxyURL + encodeURIComponent(uri)
   }
-
+  console.info("uri: " + uri)
   request({
     uri: uri,
     method: 'GET',
@@ -92,7 +71,7 @@ function makePostRequest(uri, form, callback){
   request({
     url: uri,
     method: 'POST',
-    type: 'json',
+    type: 'text',
     timeout: 10000,
     form: form
   }, handleJSend(callback))

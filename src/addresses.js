@@ -8,20 +8,20 @@ function Addresses(url, txEndpoint) {
 }
 
 Addresses.prototype.summary = function(addresses, callback) {
-  var uri = this.url + "info/"
+  var uri = this.url
 
   validateAddresses(addresses, function(err) {
     if(err) return callback(err)
 
-    utils.batchRequest(uri, addresses, {params: ["confirmations=0"]}, function(err, data) {
+    utils.batchRequest(uri, addresses, null, function(err, data) {
       if(err) return callback(err);
 
       var results = data.map(function(address) {
         return {
-          address: address.address,
+          address: address.addStr,
           balance: address.balance,
-          totalReceived: address.totalreceived,
-          txCount: address.nb_txs
+          totalReceived: address.totalReceived,
+          txCount: address.transactions.length
         }
       })
 
@@ -38,10 +38,10 @@ Addresses.prototype.transactions = function(addresses, blockHeight, done) {
   }
 
   if (blockHeight > 0) {
-    console.warn('Blockr API does not support blockHeight filter for addresses.transactions')
+    console.warn('blockHeight can be done, but not needed now')
   }
 
-  var url = this.url
+  var url = this.url.substring(0,this.url.length - 'multiaddrs/'.length) + 'addrs/'
   var txIds = {}
 
   var self = this
@@ -51,27 +51,12 @@ Addresses.prototype.transactions = function(addresses, blockHeight, done) {
     async.parallel([
       // confirmed transactions
       function(callback) {
-        utils.batchRequest(url + 'txs/', addresses, {params: ["confirmations=0"]}, function(err, data) {
+        utils.batchRequest(url, addresses, 'txs', function(err, data) {
           if (err) return callback(err)
 
           data.forEach(function(address) {
-            address.txs.forEach(function(tx) {
-              txIds[tx.tx] = true
-            })
-          })
-
-          callback()
-        })
-      },
-
-      // unconfirmed (FIXME: remove if they ever fix their API)
-      function(callback) {
-        utils.batchRequest(url + 'unconfirmed/', addresses, {}, function(err, data) {
-          if (err) return callback(err)
-
-          data.forEach(function(address) {
-            address.unconfirmed.forEach(function(tx) {
-              txIds[tx.tx] = true
+            address.items.forEach(function(tx) {
+              txIds[tx.txid] = true
             })
           })
 
@@ -87,7 +72,7 @@ Addresses.prototype.transactions = function(addresses, blockHeight, done) {
 }
 
 Addresses.prototype.unspents = function(addresses, callback) {
-  var uri = this.url + "unspent/"
+  var uri = this.url.substring(0,this.url.length - 'multiaddrs/'.length) + 'addrs/'
 
   validateAddresses(addresses, function(err) {
     if(err) return callback(err)
@@ -95,23 +80,13 @@ Addresses.prototype.unspents = function(addresses, callback) {
     utils.batchRequest(uri, addresses, function(err, data) {
       if (err) return callback(err)
 
-      var unspents = []
-      data.forEach(function(result) {
-        var address = result.address
-
-        result.unspent.forEach(function(unspent) {
-          unspent.address = address
-        })
-
-        unspents = unspents.concat(result.unspent)
-      })
-
+      var unspents = [].concat(data)
       var results = unspents.map(function(unspent) {
         return {
           address: unspent.address,
           confirmations: unspent.confirmations,
-          vout: unspent.n,
-          txId: unspent.tx,
+          vout: unspent.vout,
+          txId: unspent.txid,
           value: unspent.amount
         }
       })
